@@ -1,0 +1,8 @@
+numpy  # C-like arrays and vectorized functions
+pyzmq  # 0MQ
+paramiko  # SSH API in python
+pyyaml  # yaml
+tables  # pytables HDF5 library in Python
+pyqtgraph  # Fast plotting
+irrad_control  # Whatev
+# pyqt  # Qt library in Python; needs to be installed via conda / manually; does not work with pip / easy_install
