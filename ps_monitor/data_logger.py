@@ -5,13 +5,14 @@ import time
 import zmq
 import logging
 import argparse
+import yaml
 from irrad_control.devices.adc.ADS1256_definitions import *
 from irrad_control.devices.adc.pipyadc import ADS1256
 from irrad_control.devices.adc.ADS1256_drates import ads1256_drates
 import irrad_control.devices.adc.ADS1256_default_config as ADS1256_default_config
 
 
-def logger(channels, outfile, drate, pga_gain, rate=None, n_digits=3, mode='s', show_data=False, port=None):
+def logger(channels, log_type, outfile, drate, pga_gain, rate=None, n_digits=3, mode='s', show_data=False, port=None):
     """
     Method to log the data read back from a ADS1256 ADC to a file.
     Default is to read from positive AD0-AD7 pins from 0 to 7 for single-
@@ -144,6 +145,35 @@ def logger(channels, outfile, drate, pga_gain, rate=None, n_digits=3, mode='s', 
             socket = context.socket(zmq.PUB)
             socket.bind("tcp://*:{}".format(port))
 
+    have_to_open_file = True
+    if valid_port:
+        if log_type == "sw": #sending and writing logtype sw
+            pass
+        elif log_type == "rw": #receive and writing logtype rw
+            socket = context.socket(zmq.SUB)
+            socket.setsockopt(zmq.SUBSCRIBE, '')
+            pass
+        else: #only sending; if a valid port is given, but no log_type, this will happen
+            have_to_open_file = False
+            pass
+
+    else:#only writing, if NO valid port is given, this will happen
+        pass
+    '''
+    try:
+        out = open(outfile, 'w')
+    finally:
+        out.close()
+    '''
+
+
+
+
+
+
+
+
+
     # open outfile
     with open(outfile, 'w') as out:
 
@@ -222,6 +252,23 @@ def logger(channels, outfile, drate, pga_gain, rate=None, n_digits=3, mode='s', 
 
 def main():
 
+    with open("config.yaml") as conf_file:
+        try:
+            config = yaml.safe_load(conf_file)
+        except yaml.YAMLError as exception:
+            print(exception)
+
+    channels = config.get('channels').split(' ') ## ????? Geht das hier auch so?
+    outfile = config.get('outfile')
+    rate = config.get('outfile')
+    n_digits = config.get('n_digits')   # ist es sinnvoll hier auch die if None -> n = 8 bedinung zusaetlich zu setzen?
+    mode = config.get('mode')
+    show_data = config.get('show_data')
+    pga_gain = config.get('gain')
+    drate = config.get('drate')
+    port = config.get('drate')
+    log_type = config.get('log_type')
+    '''
     # parse args from command line
     parser = argparse.ArgumentParser()
 
@@ -251,12 +298,11 @@ def main():
     drate = ads1256_drates[1000] if drate not in ads1256_drates else ads1256_drates[drate]
     port = args['port']  # None if args['port'] is None else args['port']
 
-    # start logger
-    logger(channels=channels, outfile=outfile, drate=drate, pga_gain=pga_gain, rate=rate, n_digits=n_digits, mode=mode, show_data=show_data, port=port)
+    #start logger '''
+    logger(channels=channels, log_type=log_type, outfile=outfile, drate=drate, pga_gain=pga_gain, rate=rate, n_digits=n_digits, mode=mode, show_data=show_data, port=port)
 
     # TODO: add "socket" as argument: socket={"type": receiver|sender, "address": tcp://127.0.0.1.8888}
     # TODO: add 'logger_type' keyword which determines whether logger function will a) only write to a file b) only send data c) only receive data
-
 
 if __name__ == '__main__':
     main()
