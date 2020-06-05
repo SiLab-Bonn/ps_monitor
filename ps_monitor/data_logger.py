@@ -1,6 +1,6 @@
 #!usr/bin/python
 
-import sys
+import sys, os
 import time
 import zmq
 import logging
@@ -252,11 +252,39 @@ def logger(channels, log_type, outfile, drate, pga_gain, rate=None, n_digits=3, 
 
 def main():
 
-    with open("config.yaml") as conf_file:
+    # This is a list that contains the command line arguments which where given when this script was called (0th element is path to script itself)
+    print(sys.argv[-1])
+
+    required_info = ('drate', 'outfile', 'channels', 'show')
+
+    path_to_config_file = sys.argv[-1]
+
+    # Here we need to check if the config path that was given exists and is a file
+    if not os.path.isfile(path_to_config_file):
+        print('You stupid')
+        return
+
+     # At this point we know that the file exists so we can proceed to open and read it
+    with open("config.yaml", 'r') as conf_file:
         try:
             config = yaml.safe_load(conf_file)
         except yaml.YAMLError as exception:
             print(exception)
+            return
+
+    # When we're here we know, that the file was loaded correctly: we need to check if alle the reqired info is contained in the config
+
+    # Common way to check for keys in dict: if key in dict
+    missing = []
+    for req_i in required_info:
+        if req_i not in config:
+            missing.append(req_i)
+
+    if missing:
+        print('Following config info is missing: {}'.format(', '.join(missing)))
+        return
+
+    # When we're here, everything is nice and we're ready to roll
 
     channels = config.get('channels').split(' ') ## ????? Geht das hier auch so?
     outfile = config.get('outfile')
@@ -271,7 +299,7 @@ def main():
     '''
     # parse args from command line
     parser = argparse.ArgumentParser()
-
+    
 
     parser.add_argument('-c', '--channels', help='Channel names', required=True)
     parser.add_argument('-o', '--outfile', help='Output file', required=True)
@@ -299,10 +327,13 @@ def main():
     port = args['port']  # None if args['port'] is None else args['port']
 
     #start logger '''
+    print('Dat laeuft')
+    return
     logger(channels=channels, log_type=log_type, outfile=outfile, drate=drate, pga_gain=pga_gain, rate=rate, n_digits=n_digits, mode=mode, show_data=show_data, port=port)
 
     # TODO: add "socket" as argument: socket={"type": receiver|sender, "address": tcp://127.0.0.1.8888}
     # TODO: add 'logger_type' keyword which determines whether logger function will a) only write to a file b) only send data c) only receive data
+
 
 if __name__ == '__main__':
     main()
