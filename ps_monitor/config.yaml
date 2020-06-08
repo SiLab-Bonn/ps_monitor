@@ -14,8 +14,8 @@ log_type: 'sw'
 #ZMQ port on which data is published/received via TCP protocol; None if data should only be written locally.
 port: 5556
 
-#outfile name
-outfile: log_pi1_$(date '+%Y-%m-%d_%H:%M:%S').dat
+#path were data will be stored. final format: path/Y-m-d/H-M-S.dat
+path: testdata/
 
 #timeout between loggings as float or None for continous logging
 rate: None

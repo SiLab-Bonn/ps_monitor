@@ -1,6 +1,7 @@
 #!usr/bin/python
 
 import sys, os
+import errno
 import time
 import zmq
 import logging
@@ -9,10 +10,11 @@ import yaml
 from irrad_control.devices.adc.ADS1256_definitions import *
 from irrad_control.devices.adc.pipyadc import ADS1256
 from irrad_control.devices.adc.ADS1256_drates import ads1256_drates
+from datetime import datetime
 import irrad_control.devices.adc.ADS1256_default_config as ADS1256_default_config
 
 
-def logger(channels, log_type, outfile, drate, pga_gain, rate=None, n_digits=3, mode='s', show_data=False, port=None):
+def logger(channels, log_type, outfile, data_path, drate, pga_gain, rate=None, n_digits=3, mode='s', show_data=False, port=None):
     """
     Method to log the data read back from a ADS1256 ADC to a file.
     Default is to read from positive AD0-AD7 pins from 0 to 7 for single-
@@ -54,6 +56,7 @@ def logger(channels, log_type, outfile, drate, pga_gain, rate=None, n_digits=3, 
     -------
 
     """
+    '''
     # dictionary of possible gain settings
     _pga_gain = dict([(1, GAIN_1),
                       (2, GAIN_2),
@@ -169,7 +172,7 @@ def logger(channels, log_type, outfile, drate, pga_gain, rate=None, n_digits=3, 
 
     else:#only writing, if NO valid port is given, this will happen
         pass
-    '''
+    
     try:
         out = open(outfile, 'w')
     finally:
@@ -184,9 +187,25 @@ def logger(channels, log_type, outfile, drate, pga_gain, rate=None, n_digits=3, 
 
 
 
+    #Create a variable, which is a string of the final path to the data file
+    #The subdirectory will be named by the date of the measurement
+    my_dir = os.path.join(data_path, datetime.now().strftime('%Y-%m-%d'))
+    #The file name will be named after the time of the measurement
+    my_outfile = os.path.join(my_dir, datetime.now().strftime('%H-%M-%S'))
+    # Check if path to data_outfile already exists and makedir, if not
+    if not os.path.exists(os.path.dirname(my_outfile)):
+        try:
+            os.makedirs(os.path.dirname(my_outfile))
+        # This protects us from race conditions, if the directory was created between .exists and .makedir
+        except OSError as exc:
+            if exc.errno != errno.EEXIST:
+                raise
     # open outfile
-    with open(outfile, 'w') as out:
-
+    with open(my_outfile + '.dat', 'w') as out:
+        print('data stored in {}\n'.format(outfile))
+        out.write('This is just a test. \n')
+        out.write('# Date: %s \n' % time.asctime())
+        return
         # write info header
         out.write('# Date: %s \n' % time.asctime())
         out.write('# Measurement in %s mode.\n' % ('differential' if mode == 'd' else 'single-ended' if mode == 's' else mode))
@@ -279,7 +298,7 @@ def main():
             return
     # When we're here we know, that the file was loaded correctly: we need to check if alle the reqired info is contained in the config
     #initialize a tuple of the values of the config file, which are essential to run the data_logger
-    required_info = ('drate', 'outfile', 'channels', 'show_data')
+    required_info = ('drate', 'path', 'channels', 'show_data')
 
     # check, if all the values which we require are given in the config file
     missing = []
@@ -299,15 +318,15 @@ def main():
     n_digits = config.get('n_digits')
     mode = config.get('mode')
     show_data = config.get('show_data')
-    pga_gain = config.get('gain')
+    pga_gain = config.get('pga_gain')
     drate = config.get('drate')
     port = config.get('drate')
     log_type = config.get('log_type')
-
+    data_path = config.get('path')
     #test print to show, if configuration from config.yaml works
     print('Configuration successful.')
-    return
-    logger(channels=channels, log_type=log_type, outfile=outfile, drate=drate, pga_gain=pga_gain, rate=rate, n_digits=n_digits, mode=mode, show_data=show_data, port=port)
+
+    logger(channels=channels, log_type=log_type, outfile=outfile, drate=drate, pga_gain=pga_gain, rate=rate, n_digits=n_digits, mode=mode, show_data=show_data, port=port, data_path=data_path)
 
     # TODO: add "socket" as argument: socket={"type": receiver|sender, "address": tcp://127.0.0.1.8888}
     # TODO: add 'logger_type' keyword which determines whether logger function will a) only write to a file b) only send data c) only receive data
