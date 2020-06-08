@@ -20,11 +20,19 @@ def logger(channels, log_type, outfile, drate, pga_gain, rate=None, n_digits=3, 
     selected as inputs. Only as many channels are read as there are names
     in the channel list.
 
+    The script should be executed like this : ps_monitor config.yaml
+    The config.yaml file should always be copied from the default_config.yaml and then be modified as desired.
     Parameters
     ----------
 
     channels: list
         list of strings with names of channels
+    log_type: str
+        type of logging behaviour
+            'w' for ONLY writing data locally
+            'sw' for sending data on the specified ZMQ port AND writing it locally on the publisher
+            's' for ONLY sending data on the specified ZMQ port
+            'rw' for receiving data on the specified ZMQ port AND writing it locally on the receiver
     outfile: str
         string of output file location
     rate: int
@@ -39,6 +47,8 @@ def logger(channels, log_type, outfile, drate, pga_gain, rate=None, n_digits=3, 
         string character(s) describing the measurement mode: single-endend (s) or differential (d)
     show_data: bool
         whether or not to show the data every second on the stdout
+    port:
+        ZMQ port on which data is published/received via TCP protocol
 
     Returns
     -------
@@ -253,81 +263,49 @@ def logger(channels, log_type, outfile, drate, pga_gain, rate=None, n_digits=3, 
 def main():
 
     # This is a list that contains the command line arguments which where given when this script was called (0th element is path to script itself)
-    print(sys.argv[-1])
-
-    required_info = ('drate', 'outfile', 'channels', 'show')
-
     path_to_config_file = sys.argv[-1]
 
     # Here we need to check if the config path that was given exists and is a file
     if not os.path.isfile(path_to_config_file):
-        print('You stupid')
+        print('No config file found at the given path.')
         return
 
      # At this point we know that the file exists so we can proceed to open and read it
-    with open("config.yaml", 'r') as conf_file:
+    with open(path_to_config_file, 'r') as conf_file:
         try:
             config = yaml.safe_load(conf_file)
         except yaml.YAMLError as exception:
             print(exception)
             return
-
     # When we're here we know, that the file was loaded correctly: we need to check if alle the reqired info is contained in the config
+    #initialize a tuple of the values of the config file, which are essential to run the data_logger
+    required_info = ('drate', 'outfile', 'channels', 'show_data')
 
-    # Common way to check for keys in dict: if key in dict
+    # check, if all the values which we require are given in the config file
     missing = []
     for req_i in required_info:
         if req_i not in config:
             missing.append(req_i)
-
+    # print out values, which were not handed over by the config file
     if missing:
         print('Following config info is missing: {}'.format(', '.join(missing)))
         return
 
     # When we're here, everything is nice and we're ready to roll
 
-    channels = config.get('channels').split(' ') ## ????? Geht das hier auch so?
+    channels = config.get('channels').split(' ')
     outfile = config.get('outfile')
     rate = config.get('outfile')
-    n_digits = config.get('n_digits')   # ist es sinnvoll hier auch die if None -> n = 8 bedinung zusaetlich zu setzen?
+    n_digits = config.get('n_digits')
     mode = config.get('mode')
     show_data = config.get('show_data')
     pga_gain = config.get('gain')
     drate = config.get('drate')
     port = config.get('drate')
     log_type = config.get('log_type')
-    '''
-    # parse args from command line
-    parser = argparse.ArgumentParser()
-    
 
-    parser.add_argument('-c', '--channels', help='Channel names', required=True)
-    parser.add_argument('-o', '--outfile', help='Output file', required=True)
-    parser.add_argument('-r', '--rate', help='Timeout between loggings', required=False)
-    parser.add_argument('-d', '--digits', help='Digits for logged data', required=False)
-    parser.add_argument('-m', '--mode', help='d for differential or s for single-ended mode', required=False)
-    parser.add_argument('-s', '--show', help='Show data values', required=False)
-    parser.add_argument('-drate', '--sampling_rate', help='Sets sampling rate of ADS1256', required=False)
-    parser.add_argument('-g', '--gain', help='Sets ADS1256 amplifier gain', required=False)
-    parser.add_argument('-p', '--port', help='ZMQ port on which data is published vai TCP protocol', required=False)
-    args = vars(parser.parse_args())
-
-    # TODO make argument 'config' to pass path to config_file.yaml which is then opened an content casted into kwargs
-
-    # read arsed args and convert if necessary
-    channels = args['channels'].split(' ')
-    outfile = args['outfile']
-    rate = None if args['rate'] is None else float(args['rate'])
-    n_digits = 8 if args['digits'] is None else int(args['digits'])
-    mode = 's' if args['mode'] is None else args['mode']
-    show_data = False if args['show'] is None else bool(int(args['show']))
-    pga_gain = 1 if args['gain'] is None else int(args['gain'])
-    drate = ads1256_drates[1000] if args['sampling_rate'] is None else int(args['sampling_rate'])
-    drate = ads1256_drates[1000] if drate not in ads1256_drates else ads1256_drates[drate]
-    port = args['port']  # None if args['port'] is None else args['port']
-
-    #start logger '''
-    print('Dat laeuft')
+    #test print to show, if configuration from config.yaml works
+    print('Configuration successful.')
     return
     logger(channels=channels, log_type=log_type, outfile=outfile, drate=drate, pga_gain=pga_gain, rate=rate, n_digits=n_digits, mode=mode, show_data=show_data, port=port)
 
