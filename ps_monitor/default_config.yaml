@@ -1,0 +1,38 @@
+#Configuration settings, for ps_monitor sender/receiver
+##########################################################
+
+#channel names
+channels: "A B"
+
+#type of logging behaviour
+# 'w' for ONLY writing data locally
+# 'sw' for sending data on the specified ZMQ port AND writing it locally on the publisher
+# 's' for ONLY sending data on the specified ZMQ port
+# 'rw' for receiving data on the specified ZMQ port AND writing it locally on the receiver
+log_type: 'sw'
+
+#ZMQ port on which data is published/received via TCP protocol; None if data should only be written locally.
+port: 5556
+
+#outfile name
+outfile: log_pi1_$(date '+%Y-%m-%d_%H:%M:%S').dat
+
+#timeout between loggings as float or None for continous logging
+rate: None
+
+#number of digits for logged data
+n_digits: 8 
+
+#measurement-mode: 'd' for differential or 's' for single-ended mode
+mode: 's'
+
+#Shows data values in terminal, if True
+show_data: True
+
+#Sets sampling rate of ADS1256
+drate: ads1256_drates[1000] #if args['sampling_rate'] is None else int(args['sampling_rate'])
+#drate = ads1256_drates[1000] if drate not in ads1256_drates else ads1256_drates[drate]
+
+#Sets ADS1256 amplifier gain; possible gain settings: 1,2,4,8,16,32,64
+pga_gain: 1
+
