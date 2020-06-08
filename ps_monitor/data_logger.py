@@ -2,6 +2,7 @@
 
 import sys, os
 import errno
+import shutil
 import time
 import zmq
 import logging
@@ -188,21 +189,23 @@ def logger(channels, log_type, outfile, data_path, drate, pga_gain, rate=None, n
 
 
     #Create a variable, which is a string of the final path to the data file
-    #The subdirectory will be named by the date of the measurement
-    my_dir = os.path.join(data_path, datetime.now().strftime('%Y-%m-%d'))
-    #The file name will be named after the time of the measurement
-    my_outfile = os.path.join(my_dir, datetime.now().strftime('%H-%M-%S'))
+    #The first subdirectory will be named by the date of the measurement, the second subdirectory after the time
+    full_path = os.path.join(data_path, datetime.now().strftime('%Y-%m-%d'), datetime.now().strftime('%H-%M-%S'))
+
+    print(full_path)
     # Check if path to data_outfile already exists and makedir, if not
-    if not os.path.exists(os.path.dirname(my_outfile)):
+    if not os.path.exists(os.path.dirname(full_path+'/data.dat')):
         try:
-            os.makedirs(os.path.dirname(my_outfile))
+            os.makedirs(os.path.dirname(full_path+'/data.dat'))
         # This protects us from race conditions, if the directory was created between .exists and .makedir
         except OSError as exc:
             if exc.errno != errno.EEXIST:
                 raise
+    # save a copy of the used config.yaml file in the data path
+    shutil.copyfile(sys.argv[-1], full_path+'/used_config.yaml')
     # open outfile
-    with open(my_outfile + '.dat', 'w') as out:
-        print('data stored in {}\n'.format(outfile))
+    with open(os.path.join(full_path, 'data.dat'), 'w') as out:
+        print('data stored in {}\n'.format(full_path))
         out.write('This is just a test. \n')
         out.write('# Date: %s \n' % time.asctime())
         return
