@@ -18,7 +18,7 @@ port: 5556
 path: testdata/
 
 #timeout between loggings as float or None for continous logging
-rate: None
+#rate: 1
 
 #number of digits for logged data
 n_digits: 8 

@@ -197,9 +197,9 @@ def logger(channels, log_type, n_digits, show_data=False, path=None, fname=None,
         print('Storing data in ' + full_path)
 
         # Check if path to data_outfile already exists and makedir, if not
-        if not os.path.exists(os.path.dirname(full_path)):
+        if not os.path.exists(full_path):
             try:
-                os.makedirs(os.path.dirname(full_path))
+                os.makedirs(full_path)
             # This protects us from race conditions, if the directory was created between .exists and .makedir
             except OSError as exc:
                 if exc.errno != errno.EEXIST:
@@ -287,7 +287,7 @@ def logger(channels, log_type, n_digits, show_data=False, path=None, fname=None,
 
     # try -except clause for ending logger
     try:
-        print 'Start logging channel(s) %s to file %s.\nPress CTRL + C to stop.\n' % (', '.join(channels), outfile)
+        print 'Start logging channel(s) %s to file %s.\nPress CTRL + C to stop.\n' % (', '.join(channels), full_path)
         start = time.time()
         while True:
 
