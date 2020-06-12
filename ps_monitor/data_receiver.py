@@ -6,7 +6,7 @@ import argparse
 # Socket to talk to server
 context = zmq.Context()
 socket = context.socket(zmq.SUB)
-socket.setsockopt(zmq.SUBSCRIBE, '')
+socket.setsockopt(zmq.SUBSCRIBE, '')  # Subscribe to everything
 
 
 def recv_data(channels, port, ip, outfile):

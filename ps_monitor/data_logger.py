@@ -1,6 +1,7 @@
 #!usr/bin/python
 
-import sys, os
+import sys
+import os
 import errno
 import shutil
 import time
@@ -15,7 +16,62 @@ from datetime import datetime
 import irrad_control.devices.adc.ADS1256_default_config as ADS1256_default_config
 
 
-def logger(channels, log_type, outfile, data_path, drate, pga_gain, rate=None, n_digits=3, mode='s', show_data=False, port=None):
+def _create_actual_adc_channels(channels, mode):
+
+    # channels TODO: represent not only positive channels
+    _all_channels = [POS_AIN0, POS_AIN1,
+                     POS_AIN2, POS_AIN3,
+                     POS_AIN4, POS_AIN5,
+                     POS_AIN6, POS_AIN7]
+    # gnd
+    _gnd = NEG_AINCOM
+
+    # get actual channels by name
+    if len(channels) > 8 and mode == 's':
+        raise ValueError('Only 8 single-ended input channels exist')
+    elif len(channels) > 4 and mode == 'd':
+        raise ValueError('Only 4 differential input channels exist')
+    else:
+        # only single-ended measurements
+        if mode == 's':
+            actual_channels = [_all_channels[i] | _gnd for i in range(len(channels))]
+
+        # only differential measurements
+        elif mode == 'd':
+            actual_channels = [_all_channels[i] | _all_channels[i + 1] for i in range(len(channels))]
+
+        # mix of differential and single-ended measurements
+        elif len(mode) > 1:
+            # get configuration of measurements
+            channel_config = [1 if mode[i] == 's' else 2 for i in range(len(mode))]
+
+            # modes are known and less than 8 channels in total
+            if all(m in ['d', 's'] for m in mode) and sum(channel_config) <= 8:
+                i = j = 0
+                actual_channels = []
+
+                while i != sum(channel_config):
+                    if channel_config[j] == 1:
+                        actual_channels.append(_all_channels[i] | _gnd)
+                    else:
+                        actual_channels.append(_all_channels[i] | _all_channels[i + 1])
+                    i += channel_config[j]
+                    j += 1
+
+                if len(actual_channels) != len(channels):
+                    raise ValueError('Number of channels (%i) not matching measurement mode ("%s" == %i differential & %i single-ended channels)!'
+                                     % (len(channels), mode, mode.count('d'), mode.count('s')))
+                else:
+                    raise ValueError(
+                        'Unsupported number of channels! %i differential (%i channels) and %i single-ended (%i channels) measurements but only 8 channels total'
+                        % (mode.count('d'), mode.count('d') * 2, mode.count('s'), mode.count('s')))
+        else:
+            raise ValueError('Unknown measurement mode %s. Supported modes are "d" for differential and "s" for single-ended measurements.' % mode)
+
+    return actual_channels
+
+
+def logger(channels, log_type, n_digits, show_data=False, path=None, fname=None, drate=None, pga_gain=None, rate=None, mode='s', port=None, ip=None):
     """
     Method to log the data read back from a ADS1256 ADC to a file.
     Default is to read from positive AD0-AD7 pins from 0 to 7 for single-
@@ -81,56 +137,8 @@ def logger(channels, log_type, outfile, data_path, drate, pga_gain, rate=None, n
     # self-calibration
     adc.cal_self()
     adc.wait_DRDY()
-
-    # channels TODO: represent not only positive channels
-    _all_channels = [POS_AIN0, POS_AIN1,
-                     POS_AIN2, POS_AIN3,
-                     POS_AIN4, POS_AIN5,
-                     POS_AIN6, POS_AIN7]
-    # gnd
-    _gnd = NEG_AINCOM
-
-    # get actual channels by name
-    if len(channels) > 8 and mode == 's':
-        raise ValueError('Only 8 single-ended input channels exist')
-    elif len(channels) > 4 and mode == 'd':
-        raise ValueError('Only 4 differential input channels exist')
-    else:
-        # only single-ended measurements
-        if mode == 's':
-            actual_channels = [_all_channels[i] | _gnd for i in range(len(channels))]
-
-        # only differential measurements
-        elif mode == 'd':
-            actual_channels = [_all_channels[i] | _all_channels[i + 1] for i in range(len(channels))]
-
-        # mix of differential and single-ended measurements
-        elif len(mode) > 1:
-            # get configuration of measurements
-            channel_config = [1 if mode[i] == 's' else 2 for i in range(len(mode))]
-
-            # modes are known and less than 8 channels in total
-            if all(m in ['d', 's'] for m in mode) and sum(channel_config) <= 8:
-                i = j = 0
-                actual_channels = []
-
-                while i != sum(channel_config):
-                    if channel_config[j] == 1:
-                        actual_channels.append(_all_channels[i] | _gnd)
-                    else:
-                        actual_channels.append(_all_channels[i] | _all_channels[i + 1])
-                    i += channel_config[j]
-                    j += 1
-
-                if len(actual_channels) != len(channels):
-                    raise ValueError('Number of channels (%i) not matching measurement mode ("%s" == %i differential & %i single-ended channels)!'
-                                     % (len(channels), mode, mode.count('d'), mode.count('s')))
-                else:
-                    raise ValueError(
-                        'Unsupported number of channels! %i differential (%i channels) and %i single-ended (%i channels) measurements but only 8 channels total'
-                        % (mode.count('d'), mode.count('d') * 2, mode.count('s'), mode.count('s')))
-        else:
-            raise ValueError('Unknown measurement mode %s. Supported modes are "d" for differential and "s" for single-ended measurements.' % mode)
+    
+    actual_channels = _create_actual_adc_channels(channels, mode)
 
     # Get the offset voltages for every pin pair we're using here
     offset_volts = []
@@ -180,104 +188,179 @@ def logger(channels, log_type, outfile, data_path, drate, pga_gain, rate=None, n
         out.close()
     '''
 
+    # First thing to to: figure out which arguments are needed from log_type
+    if log_type in ('w', 'sw', 'rw'):  # Here we are sure we need to open a file
 
+        # Create file path
+        full_path = os.path.join(path, datetime.now().strftime('%Y-%m-%d'), datetime.now().strftime('%H-%M-%S'))
 
+        print('Storing data in ' + full_path)
 
+        # Check if path to data_outfile already exists and makedir, if not
+        if not os.path.exists(os.path.dirname(full_path)):
+            try:
+                os.makedirs(os.path.dirname(full_path))
+            # This protects us from race conditions, if the directory was created between .exists and .makedir
+            except OSError as exc:
+                if exc.errno != errno.EEXIST:
+                    raise
 
+        # Open required file
+        out = open(os.path.join(full_path, 'data.dat' if fname is None else fname), 'w')
 
+    # Second thin to figure out: are we sending or receiving data on a socket
+    if log_type in ('sw', 'rw', 's'):
 
-
-
-    #Create a variable, which is a string of the final path to the data file
-    #The first subdirectory will be named by the date of the measurement, the second subdirectory after the time
-    full_path = os.path.join(data_path, datetime.now().strftime('%Y-%m-%d'), datetime.now().strftime('%H-%M-%S'))
-
-    print(full_path)
-    # Check if path to data_outfile already exists and makedir, if not
-    if not os.path.exists(os.path.dirname(full_path+'/data.dat')):
+        # Check if port works
         try:
-            os.makedirs(os.path.dirname(full_path+'/data.dat'))
-        # This protects us from race conditions, if the directory was created between .exists and .makedir
-        except OSError as exc:
-            if exc.errno != errno.EEXIST:
-                raise
+            _ = int(port)
+        except ValueError:
+            print("Port must be castable to type int! No socket will be opened!")
+            return
+
+        # Fire up ZMQ stuff
+        ctx = zmq.Context()
+        socket = ctx.socket(zmq.PUB if log_type != 'rw' else zmq.SUB)
+
+        # Make distinctions between socket types
+        if socket.socket_type == zmq.PUB:
+            socket.bind("tcp://*:{}".format(port))
+        else:
+            socket.setsockopt(zmq.SUBSCRIBE, '')  # Connect to all available data
+            socket.connect("tcp://{}:{}".format((ip, port)))
+
+    # We're using the ADC
+    if log_type in ('s', 'sw', 'w'):
+
+        # dictionary of possible gain settings
+        _pga_gain = dict([(1, GAIN_1),
+                          (2, GAIN_2),
+                          (4, GAIN_4),
+                          (8, GAIN_8),
+                          (16, GAIN_16),
+                          (32, GAIN_32),
+                          (64, GAIN_64)])
+
+        # write chosen pga_gain setting into adcon register
+        ADS1256_default_config.adcon = CLKOUT_OFF | SDCS_OFF | _pga_gain[pga_gain]  # pga_gain needs to be 0-6
+
+        # set chosen sampling rate
+        ADS1256_default_config.drate = ads1256_drates[drate]
+
+        # get instance of ADC Board
+        adc = ADS1256(conf=ADS1256_default_config)
+
+        # additional delay after changing gain and drate registers
+        adc.wait_DRDY()
+
+        # self-calibration
+        adc.cal_self()
+        adc.wait_DRDY()
+
+        actual_channels = _create_actual_adc_channels(channels, mode)
+
+        # Get the offset voltages for every pin pair we're using here
+        offset_volts = []
+        for pin_pair in actual_channels:
+            adc.mux = pin_pair
+            adc.cal_system_offset()
+            bit_offset = adc.ofc
+            offset_volts.append(bit_offset * adc.v_per_digit)
+        print([o * 1e3 for o in offset_volts])
+
+        # Set this to 0 since we want to manually calc the offset for each channel
+        adc.ofc = 0
+
+        # We're writing to file
+        if log_type != 's':
+            out.write('# Date: %s \n' % time.asctime())
+            out.write('# Measurement in %s mode.\n' % ('differential' if mode == 'd' else 'single-ended' if mode == 's' else mode))
+            out.write('# ADC settings: PGA_gain = {}; Sampling_rate = {}\n'.format(pga_gain, drate))
+            out.write('# Offset voltages in V: ' + '\t'.join('%.{}f'.format(n_digits) % o for o in offset_volts) + '\n')
+            if log_type == 'rw':
+                out.write('# Timestamp receiver / s\t' + 'Timestamp data / s\t' + ' \t'.join('%s / V' % c for c in channels) + '\n')
+            else:
+                out.write('# Timestamp / s\t' + ' \t'.join('%s / V' % c for c in channels) + '\n')
+
     # save a copy of the used config.yaml file in the data path
-    shutil.copyfile(sys.argv[-1], full_path+'/used_config.yaml')
-    # open outfile
-    with open(os.path.join(full_path, 'data.dat'), 'w') as out:
-        print('data stored in {}\n'.format(full_path))
-        out.write('This is just a test. \n')
-        out.write('# Date: %s \n' % time.asctime())
-        return
-        # write info header
-        out.write('# Date: %s \n' % time.asctime())
-        out.write('# Measurement in %s mode.\n' % ('differential' if mode == 'd' else 'single-ended' if mode == 's' else mode))
-        for key in ads1256_drates:
-            if ads1256_drates[key] == drate:
-                drate_log = key
-        out.write('# ADC settings: PGA_gain = {}; Sampling_rate = {}\n'.format(pga_gain, drate_log))
-        out.write('# Offset voltages in V: ' + '\t'.join('%.{}f'.format(n_digits) % o for o in offset_volts) + '\n')
-        out.write('# Timestamp / s\t' + ' \t'.join('%s / V' % c for c in channels) + '\n')
-        # try -except clause for ending logger
-        try:
-            print 'Start logging channel(s) %s to file %s.\nPress CTRL + C to stop.\n' % (', '.join(channels), outfile)
-            start = time.time()
-            while True:
+    shutil.copyfile(sys.argv[-1], full_path + '/used_config.yaml')
+
+    # try -except clause for ending logger
+    try:
+        print 'Start logging channel(s) %s to file %s.\nPress CTRL + C to stop.\n' % (', '.join(channels), outfile)
+        start = time.time()
+        while True:
+
+            # get current channels
+            if log_type == 'rw':
+
+                # receive actual voltage values including timestamp
+                data = socket.recv_json()
+
+                _meta, _data = data['meta'], data['data']
+
+                write_data = [time.time(), _meta['timestamp']] + [_data[ch] for ch in channels]
+
+            else:
 
                 readout_start = time.time()
 
-                # get current channels
                 raw = adc.read_continue(actual_channels)
                 volts = [b * adc.v_per_digit for b in raw]
+
                 # TODO: offset seems to be subtracted already in adc.cal_system_offset() in line 133 -> temporarily inserted factor 0.
                 actual_volts = [volts[i] - offset_volts[i] for i in range(len(volts))]
 
+                write_data = [readout_start] + actual_volts
+
                 readout_end = time.time()
 
-                # write timestamp to file
-                out.write('%.{}f\t'.format(n_digits) % readout_start)
-
-                # write voltages to file
-                out.write('\t'.join('%.{}f'.format(n_digits) % v for v in actual_volts) + '\n')
+                # send data to
+                if 's' in log_type:
+                    data = {'meta': {'timestamp': readout_start}, 'data': dict(zip(channels, actual_volts))}
+                    socket.send_json(data)
 
                 # wait, if wanted
                 if rate is not None:
                     time.sleep(1. / rate)
 
-                data = {'meta': {'timestamp': readout_start}, 'data': dict(zip(channels, actual_volts))}
+            # write voltages to file
+            if 'w' in log_type:
+                out.write('\t'.join('%.{}f'.format(n_digits) % v for v in write_data) + '\n')
 
-                # send data to previously chosen address and port
-                if valid_port:
-                    socket.send_json(data)
+            # User feedback about logging and readout rates every second
+            if time.time() - start > 1:
 
-                # User feedback about logging and readout rates every second
-                if time.time() - start > 1:
+                # actual logging and readout rate
+                logging_rate = 1. / (time.time() - readout_start)
+                readout_rate = 1. / (readout_end - readout_start)
 
-                    # actual logging and readout rate
-                    logging_rate = 1. / (time.time() - readout_start)
-                    readout_rate = 1. / (readout_end - readout_start)
+                # print out with flushing
+                log_string = 'Logging rate: %.2f Hz' % logging_rate + ',\t' + 'Readout rate: %.2f Hz for %i channel(s)'\
+                             % (readout_rate, len(actual_channels))
 
+                # show values
+                if show_data:
                     # print out with flushing
-                    log_string = 'Logging rate: %.2f Hz' % logging_rate + ',\t' + 'Readout rate: %.2f Hz for %i channel(s)'\
-                                 % (readout_rate, len(actual_channels))
+                    log_string += ': %s' % ', '.join('{}: %.{}f V'.format(channels[i], n_digits) % actual_volts[i] for i in range(len(actual_volts)))
 
-                    # show values
-                    if show_data:
-                        # print out with flushing
-                        log_string += ': %s' % ', '.join('{}: %.{}f V'.format(channels[i], n_digits) % actual_volts[i] for i in range(len(actual_volts)))
+                # print out with flushing
+                sys.stdout.write('\r' + log_string)
+                sys.stdout.flush()
 
-                    # print out with flushing
-                    sys.stdout.write('\r' + log_string)
-                    sys.stdout.flush()
+                # test print measured voltages before sending
+                # print (actual_volts)
 
-                    # test print measured voltages before sending
-                    # print (actual_volts)
+                # overwrite
+                start = time.time()
 
-                    # overwrite
-                    start = time.time()
+    except KeyboardInterrupt:
+        if 'w' in log_type:
+            print '\nStopping logger...\nClosing %s...' % str(full_path)
 
-        except KeyboardInterrupt:
-            print '\nStopping logger...\nClosing %s...' % str(outfile)
+        if 's' in log_type or 'r' in log_type:
+            socket.close()
+            print('Stopped {} data'.format('sending' if 's' in log_type else 'receiving'))
 
     print 'Finished'
 
@@ -286,6 +369,8 @@ def main():
 
     # This is a list that contains the command line arguments which where given when this script was called (0th element is path to script itself)
     path_to_config_file = sys.argv[-1]
+
+    # What if len(sys.argv != 1) ?
 
     # Here we need to check if the config path that was given exists and is a file
     if not os.path.isfile(path_to_config_file):
@@ -299,9 +384,10 @@ def main():
         except yaml.YAMLError as exception:
             print(exception)
             return
+
     # When we're here we know, that the file was loaded correctly: we need to check if alle the reqired info is contained in the config
-    #initialize a tuple of the values of the config file, which are essential to run the data_logger
-    required_info = ('drate', 'path', 'channels', 'show_data')
+    # Initialize a tuple of the values of the config file, which are essential to run the data_logger
+    required_info = ('n_digits', 'channels', 'show_data', 'log_type')
 
     # check, if all the values which we require are given in the config file
     missing = []
@@ -313,23 +399,9 @@ def main():
         print('Following config info is missing: {}'.format(', '.join(missing)))
         return
 
-    # When we're here, everything is nice and we're ready to roll
-
-    channels = config.get('channels').split(' ')
-    outfile = config.get('outfile')
-    rate = config.get('outfile')
-    n_digits = config.get('n_digits')
-    mode = config.get('mode')
-    show_data = config.get('show_data')
-    pga_gain = config.get('pga_gain')
-    drate = config.get('drate')
-    port = config.get('drate')
-    log_type = config.get('log_type')
-    data_path = config.get('path')
-    #test print to show, if configuration from config.yaml works
     print('Configuration successful.')
 
-    logger(channels=channels, log_type=log_type, outfile=outfile, drate=drate, pga_gain=pga_gain, rate=rate, n_digits=n_digits, mode=mode, show_data=show_data, port=port, data_path=data_path)
+    logger(**config)  # Casting of dict into 'kwargs' aka keyword arguments a la key=value
 
     # TODO: add "socket" as argument: socket={"type": receiver|sender, "address": tcp://127.0.0.1.8888}
     # TODO: add 'logger_type' keyword which determines whether logger function will a) only write to a file b) only send data c) only receive data

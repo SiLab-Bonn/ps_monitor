@@ -30,7 +30,7 @@ mode: 's'
 show_data: True
 
 #Sets sampling rate of ADS1256
-drate: ads1256_drates[1000] #if args['sampling_rate'] is None else int(args['sampling_rate'])
+drate: 1000 #if args['sampling_rate'] is None else int(args['sampling_rate'])
 #drate = ads1256_drates[1000] if drate not in ads1256_drates else ads1256_drates[drate]
 
 #Sets ADS1256 amplifier gain; possible gain settings: 1,2,4,8,16,32,64
