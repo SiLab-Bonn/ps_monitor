@@ -110,7 +110,7 @@ def check_config():
             return
 
     if 'r' in config['log_type']:
-        if not config['port'] and config['ip']:
+        if not (config['port'] and config['ip']):
             raise ValueError('data_logger was called with the receiving option, but no ZMQ port or host-ip is given.')
             return
 
