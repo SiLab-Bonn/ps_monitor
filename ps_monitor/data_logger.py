@@ -198,7 +198,7 @@ def logger(channels, log_type, n_digits, show_data=False, path=None, fname=None,
             socket.bind("tcp://*:{}".format(port))
         else:
             socket.setsockopt(zmq.SUBSCRIBE, '')  # Connect to all available data
-            socket.connect("tcp://{}:{}".format((ip, port)))
+            socket.connect("tcp://%s:%s" % (ip, port))
 
     # We're using the ADC
     if log_type in ('s', 'sw', 'w'):
@@ -271,14 +271,14 @@ def logger(channels, log_type, n_digits, show_data=False, path=None, fname=None,
 
             # get current channels
             if log_type == 'rw':
-
+                readout_start = time.time()
                 # receive actual voltage values including timestamp
                 data = socket.recv_json()
 
                 _meta, _data = data['meta'], data['data']
 
                 write_data = [time.time(), _meta['timestamp']] + [_data[ch] for ch in channels]
-
+                readout_end = time.time()
             else:
 
                 readout_start = time.time()
@@ -314,20 +314,24 @@ def logger(channels, log_type, n_digits, show_data=False, path=None, fname=None,
                 readout_rate = 1. / (readout_end - readout_start)
 
                 # print out with flushing
-                log_string = 'Logging rate: %.2f Hz' % logging_rate + ',\t' + 'Readout rate: %.2f Hz for %i channel(s)'\
+                if log_type =='rw':
+                    log_string = 'Logging rate: %.2f Hz' % logging_rate + ',\t' + 'Readout rate: %.2f Hz for %i channel(s)'\
+                             % (readout_rate, len(channels))
+                else:
+                    log_string = 'Logging rate: %.2f Hz' % logging_rate + ',\t' + 'Readout rate: %.2f Hz for %i channel(s)'\
                              % (readout_rate, len(actual_channels))
 
                 # show values
                 if show_data:
                     # print out with flushing
-                    log_string += ': %s' % ', '.join('{}: %.{}f V'.format(channels[i], n_digits) % actual_volts[i] for i in range(len(actual_volts)))
+                    if log_type == 'rw':
+                        log_string += ': %s' % ', '.join('{}: %.{}f V'.format(channels[i], n_digits) % _data[k] for i,k in enumerate(channels))
+                    else:
+                        log_string += ': %s' % ', '.join('{}: %.{}f V'.format(channels[i], n_digits) % actual_volts[i] for i in range(len(actual_volts)))
 
                 # print out with flushing
                 sys.stdout.write('\r' + log_string)
                 sys.stdout.flush()
-
-                # test print measured voltages before sending
-                # print (actual_volts)
 
                 # overwrite
                 start = time.time()
@@ -346,6 +350,7 @@ def logger(channels, log_type, n_digits, show_data=False, path=None, fname=None,
 def main():
     config = {}
     config = check_config()
+    _create_actual_adc_channels(config['channels'],config['mode'])
     logger(**config)  # Casting of dict into 'kwargs' aka keyword arguments a la key=value
 
     # TODO: add "socket" as argument: socket={"type": receiver|sender, "address": tcp://127.0.0.1.8888}
