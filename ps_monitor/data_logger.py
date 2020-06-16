@@ -254,7 +254,14 @@ def logger(channels, log_type, n_digits, show_data=False, path=None, fname=None,
                 out.write('# Timestamp / s\t' + ' \t'.join('%s / V' % c for c in channels) + '\n')
 
     # save a copy of the used config.yaml file in the data path
-    shutil.copyfile(sys.argv[-1], full_path + '/used_config.yaml')
+    if not os.path.exists(full_path):
+        try:
+            os.makedirs(full_path)
+        # This protects us from race conditions, if the directory was created between .exists and .makedir
+        except OSError as exc:
+            if exc.errno != errno.EEXIST:
+                raise
+    shutil.copyfile(sys.argv[-1], os.path.join(full_path, "used_config.yaml"))
 
     # try -except clause for ending logger
     try:
