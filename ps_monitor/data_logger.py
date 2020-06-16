@@ -70,6 +70,53 @@ def _create_actual_adc_channels(channels, mode):
 
     return actual_channels
 
+def check_config():
+    # Function, which reads the configuration yaml and checks, if all required information is contained for the chosen case.
+    # sys.argv is a list that contains the command line arguments which where given when this script was called (0th element is path to script itself)
+    # The config.yaml should be the last argument, when you call the script.
+    path_to_config_file = sys.argv[-1]
+
+    # Here we need to check if the config path that was given exists and is a file
+    if not os.path.isfile(path_to_config_file):
+        print('No config file found at the given path.')
+        return
+
+     # At this point we know that the file exists so we can proceed to open and read it
+    with open(path_to_config_file, 'r') as conf_file:
+        try:
+            config = yaml.safe_load(conf_file)
+        except yaml.YAMLError as exception:
+            print(exception)
+            return
+
+    # When we're here we know, that the file was loaded correctly: we need to check if all the required info is contained in the config
+    # Initialize a tuple of the values of the config file, which are essential to run the data_logger
+    required_info = ('n_digits', 'channels', 'show_data', 'log_type')
+
+    # check, if all the values which we require are given in the config file
+    missing = []
+    for req_i in required_info:
+        if req_i not in config:
+            missing.append(req_i)
+    # print out values, which were not handed over by the config file
+    if missing:
+        print('Following config info is missing: {}'.format(', '.join(missing)))
+        return
+
+    # check for valid configuration for each log_type, where port or ip are needed
+    if 's' in config['log_type']:
+        if not config['port']:
+            raise ValueError('data_logger was called with the sending option, but no ZMQ port is given.')
+            return
+
+    if 'r' in config['log_type']:
+        if not config['port'] and config['ip']:
+            raise ValueError('data_logger was called with the receiving option, but no ZMQ port or host-ip is given.')
+            return
+
+    print('Configuration successful.')
+    return config
+
 
 def logger(channels, log_type, n_digits, show_data=False, path=None, fname=None, drate=None, pga_gain=None, rate=None, mode='s', port=None, ip=None):
     """
@@ -111,84 +158,9 @@ def logger(channels, log_type, n_digits, show_data=False, path=None, fname=None,
 
     Returns
     -------
-
     """
-    '''
-    # dictionary of possible gain settings
-    _pga_gain = dict([(1, GAIN_1),
-                      (2, GAIN_2),
-                      (4, GAIN_4),
-                      (8, GAIN_8),
-                      (16, GAIN_16),
-                      (32, GAIN_32),
-                      (64, GAIN_64)])
-    # write chosen pga_gain setting into adcon register
-    ADS1256_default_config.adcon = CLKOUT_OFF | SDCS_OFF | _pga_gain[pga_gain]  # pga_gain needs to be 0-6
 
-    # set chosen sampling rate
-    ADS1256_default_config.drate = drate
-
-    # get instance of ADC Board
-    adc = ADS1256(conf=ADS1256_default_config)
-
-    # additional delay after changing gain and drate registers
-    adc.wait_DRDY()
-
-    # self-calibration
-    adc.cal_self()
-    adc.wait_DRDY()
-    
-    actual_channels = _create_actual_adc_channels(channels, mode)
-
-    # Get the offset voltages for every pin pair we're using here
-    offset_volts = []
-    for pin_pair in actual_channels:
-        adc.mux = pin_pair
-        adc.cal_system_offset()
-        bit_offset = adc.ofc
-        offset_volts.append(bit_offset * adc.v_per_digit)
-    print([o * 1e3 for o in offset_volts])
-
-    # Set this to 0 since we want to manually calc the offset for each channel
-    adc.ofc = 0
-
-    # Decide whether data needs to be published on a ZMQ socket
-    valid_port = True
-    if port is not None:
-        try:
-            _ = int(port)
-        except ValueError:
-            valid_port = False
-            print("Port must be castable to type int! No socket will be opened!")
-
-        if valid_port:
-            # Publisher Socket to talk to server
-            context = zmq.Context()
-            socket = context.socket(zmq.PUB)
-            socket.bind("tcp://*:{}".format(port))
-
-    have_to_open_file = True
-    if valid_port:
-        if log_type == "sw": #sending and writing logtype sw
-            pass
-        elif log_type == "rw": #receive and writing logtype rw
-            socket = context.socket(zmq.SUB)
-            socket.setsockopt(zmq.SUBSCRIBE, '')
-            pass
-        else: #only sending; if a valid port is given, but no log_type, this will happen
-            have_to_open_file = False
-            pass
-
-    else:#only writing, if NO valid port is given, this will happen
-        pass
-    
-    try:
-        out = open(outfile, 'w')
-    finally:
-        out.close()
-    '''
-
-    # First thing to to: figure out which arguments are needed from log_type
+    # First thing to do: figure out which arguments are needed from log_type
     if log_type in ('w', 'sw', 'rw'):  # Here we are sure we need to open a file
 
         # Create file path
@@ -366,41 +338,8 @@ def logger(channels, log_type, n_digits, show_data=False, path=None, fname=None,
 
 
 def main():
-
-    # This is a list that contains the command line arguments which where given when this script was called (0th element is path to script itself)
-    path_to_config_file = sys.argv[-1]
-
-    # What if len(sys.argv != 1) ?
-
-    # Here we need to check if the config path that was given exists and is a file
-    if not os.path.isfile(path_to_config_file):
-        print('No config file found at the given path.')
-        return
-
-     # At this point we know that the file exists so we can proceed to open and read it
-    with open(path_to_config_file, 'r') as conf_file:
-        try:
-            config = yaml.safe_load(conf_file)
-        except yaml.YAMLError as exception:
-            print(exception)
-            return
-
-    # When we're here we know, that the file was loaded correctly: we need to check if alle the reqired info is contained in the config
-    # Initialize a tuple of the values of the config file, which are essential to run the data_logger
-    required_info = ('n_digits', 'channels', 'show_data', 'log_type')
-
-    # check, if all the values which we require are given in the config file
-    missing = []
-    for req_i in required_info:
-        if req_i not in config:
-            missing.append(req_i)
-    # print out values, which were not handed over by the config file
-    if missing:
-        print('Following config info is missing: {}'.format(', '.join(missing)))
-        return
-
-    print('Configuration successful.')
-
+    config = {}
+    config = check_config()
     logger(**config)  # Casting of dict into 'kwargs' aka keyword arguments a la key=value
 
     # TODO: add "socket" as argument: socket={"type": receiver|sender, "address": tcp://127.0.0.1.8888}
