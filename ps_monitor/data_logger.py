@@ -92,7 +92,8 @@ def check_config():
     # When we're here we know, that the file was loaded correctly: we need to check if all the required info is contained in the config
     # Initialize a tuple of the values of the config file, which are essential to run the data_logger
     required_info = ('n_digits', 'channels', 'show_data', 'log_type')
-
+    # since channel names are read from config.yaml as complete string, we have to get rid of the spaces first, so they dont get recognized as channel names
+    config['channels'] = config['channels'].split()
     # check, if all the values which we require are given in the config file
     missing = []
     for req_i in required_info:
@@ -182,7 +183,7 @@ def logger(channels, log_type, n_digits, show_data=False, path=None, fname=None,
             # write info header
             out.write('# Date: %s \n' % time.asctime())
             out.write('# Timestamp receiver / s\t' + 'Timestamp data / s\t' + ' \t'.join('%s / V' % c for c in channels) + '\n')
-            
+
     # Second thin to figure out: are we sending or receiving data on a socket
     if log_type in ('sw', 'rw', 's'):
 
