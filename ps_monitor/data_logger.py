@@ -178,7 +178,11 @@ def logger(channels, log_type, n_digits, show_data=False, path=None, fname=None,
 
         # Open required file
         out = open(os.path.join(full_path, 'data.dat' if fname is None else fname), 'w')
-
+        if log_type == 'rw':
+            # write info header
+            out.write('# Date: %s \n' % time.asctime())
+            out.write('# Timestamp receiver / s\t' + 'Timestamp data / s\t' + ' \t'.join('%s / V' % c for c in channels) + '\n')
+            
     # Second thin to figure out: are we sending or receiving data on a socket
     if log_type in ('sw', 'rw', 's'):
 
