@@ -14,6 +14,9 @@ log_type: 'sw'
 #ZMQ port on which data is published/received via TCP protocol; None if data should only be written locally.
 port: 5556
 
+#IP of the sending device, in case log_type='rw'
+ip: 131.220.168.129
+
 #path were data will be stored. final format: path/Y-m-d/H-M-S.dat
 path: testdata/
 
