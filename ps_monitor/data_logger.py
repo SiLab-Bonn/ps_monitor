@@ -159,12 +159,11 @@ def logger(channels, log_type, n_digits, show_data=False, path=None, fname=None,
     Returns
     -------
     """
+    # Create file path, where data should be stored and a copy of the used config.yaml file is saved
+    full_path = os.path.join(path, datetime.now().strftime('%Y-%m-%d'), datetime.now().strftime('%H-%M-%S'))
 
     # First thing to do: figure out which arguments are needed from log_type
     if log_type in ('w', 'sw', 'rw'):  # Here we are sure we need to open a file
-
-        # Create file path
-        full_path = os.path.join(path, datetime.now().strftime('%Y-%m-%d'), datetime.now().strftime('%H-%M-%S'))
 
         print('Storing data in ' + full_path)
 
