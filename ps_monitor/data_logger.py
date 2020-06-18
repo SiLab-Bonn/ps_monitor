@@ -70,12 +70,8 @@ def _create_actual_adc_channels(channels, mode):
 
     return actual_channels
 
-def check_config():
+def load_config(path_to_config_file):
     # Function, which reads the configuration yaml and checks, if all required information is contained for the chosen case.
-    # sys.argv is a list that contains the command line arguments which where given when this script was called (0th element is path to script itself)
-    # The config.yaml should be the last argument, when you call the script.
-    path_to_config_file = sys.argv[-1]
-
     # Here we need to check if the config path that was given exists and is a file
     if not os.path.isfile(path_to_config_file):
         print('No config file found at the given path.')
@@ -85,10 +81,12 @@ def check_config():
     with open(path_to_config_file, 'r') as conf_file:
         try:
             config = yaml.safe_load(conf_file)
+            return config
         except yaml.YAMLError as exception:
             print(exception)
             return
 
+def check_config(config):
     # When we're here we know, that the file was loaded correctly: we need to check if all the required info is contained in the config
     # Initialize a tuple of the values of the config file, which are essential to run the data_logger
     required_info = ('n_digits', 'channels', 'show_data', 'log_type')
@@ -116,7 +114,7 @@ def check_config():
             return
 
     print('Configuration successful.')
-    return config
+    return
 
 
 def logger(channels, log_type, n_digits, show_data=False, path=None, fname=None, drate=None, pga_gain=None, rate=None, mode='s', port=None, ip=None):
@@ -353,8 +351,11 @@ def logger(channels, log_type, n_digits, show_data=False, path=None, fname=None,
 
 
 def main():
-    config = {}
-    config = check_config()
+    # sys.argv is a list that contains the command line arguments which where given when this script was called (0th element is path to script itself)
+    # The config.yaml should be the last argument, when you call the script.
+    path_to_config_file = sys.argv[-1]
+    config = load_config(path_to_config_file)
+    check_config(config)
     _create_actual_adc_channels(config['channels'],config['mode'])
     logger(**config)  # Casting of dict into 'kwargs' aka keyword arguments a la key=value
 
