@@ -4,6 +4,7 @@ import time
 import argparse
 from PyQt5 import QtCore, QtWidgets, QtGui
 from threading import Event
+import logger
 
 # Package imports
 from irrad_control.utils.worker import Worker
@@ -12,11 +13,15 @@ from irrad_control.gui.widgets import ScrollingIrradDataPlot, PlotWrapperWidget
 PROJECT_NAME = 'PS Monitor'
 
 
+def tcp_addr(ip, port):
+    return 'tcp://%s:%s' % (ip, port)
+
+
 class PSMonitorWin(QtWidgets.QMainWindow):
 
     data_received = QtCore.pyqtSignal(dict)
 
-    def __init__(self, channels, ip, port, parent=None):
+    def __init__(self, config, parent=None):
         super(PSMonitorWin, self).__init__(parent)
 
         self.stop_recv_data = Event()
@@ -28,17 +33,28 @@ class PSMonitorWin(QtWidgets.QMainWindow):
         # QThreadPool manages GUI threads on its own; every runnable started via start(runnable) is auto-deleted after.
         self.threadpool = QtCore.QThreadPool()
 
-        self.port = port
-        self.ip = ip
-        self.tcp_addr = 'tcp://%s:%s' % (self.ip, self.port)
-        self.channels = channels
+        self.config = config
+        self.port = {}
+        self.ip = {}
+        self.channels = []
 
         # Create worker to listen to data stream
+
+        # Create UI
+        self._setup_config()
+        self._init_ui()
+
         worker = Worker(self.recv_data)
         self.threadpool.start(worker)
 
-        # Create UI
-        self._init_ui()
+    def _setup_config(self):
+        # Do amazing with config dict
+
+        for rpi in self.config:
+            # Write info to instance attributes
+            self.port[rpi] = self.config[rpi]["port"]
+            self.ip[rpi] = self.config[rpi]["ip"]
+            self.channels += self.config[rpi]["channels"]
 
     def _init_ui(self):
 
@@ -65,7 +81,8 @@ class PSMonitorWin(QtWidgets.QMainWindow):
         data_sub = self.context.socket(zmq.SUB)
 
         # Connect to interpreter data stream
-        data_sub.connect(self.tcp_addr)
+        for rpi in self.config:
+            data_sub.connect(tcp_addr(ip=self.ip[rpi], port=self.port[rpi]))
 
         data_sub.setsockopt(zmq.SUBSCRIBE, '')
         data_timestamp = None
@@ -85,21 +102,19 @@ class PSMonitorWin(QtWidgets.QMainWindow):
             self.data_received.emit(data)
 
 
-def main():
-    # parse args from command line
-    parser = argparse.ArgumentParser()
-    parser.add_argument('-c', '--channels', help='Channel names', required=True)
-    parser.add_argument('-ip', '--ip_address', help='IP address', required=True)
-    parser.add_argument('-p', '--port', help='Port', required=True)
-    args = vars(parser.parse_args())
+def main(config):
     app = QtWidgets.QApplication(sys.argv)
     font = QtGui.QFont()
     font.setPointSize(11)
     app.setFont(font)
-    psm = PSMonitorWin(channels=args['channels'].split(' '), ip=args['ip_address'], port=args['port'])
+    psm = PSMonitorWin(config=config)
     psm.show()
     sys.exit(app.exec_())
 
 
 if __name__ == '__main__':
-    main()
+    # parse args from command line
+
+    path_to_config_file = sys.argv[-1]
+    config = logger.load_config(path_to_config_file)
+    main(config=config)

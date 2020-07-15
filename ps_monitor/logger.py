@@ -1,19 +1,61 @@
-#!usr/bin/python
+#!usr/bin/env python
 
 import sys
 import os
+import signal
 import errno
 import shutil
 import time
 import zmq
-import logging
-import argparse
 import yaml
 from irrad_control.devices.adc.ADS1256_definitions import *
 from irrad_control.devices.adc.pipyadc import ADS1256
 from irrad_control.devices.adc.ADS1256_drates import ads1256_drates
-from datetime import datetime
 import irrad_control.devices.adc.ADS1256_default_config as ADS1256_default_config
+
+def load_config(path_to_config_file):
+    # Function, which reads the configuration yaml and checks, if all required information is contained for the chosen case.
+    # Here we need to check if the config path that was given exists and is a file
+    if not os.path.isfile(path_to_config_file):
+        print('No config file found at the given path.')
+        return
+
+    # At this point we know that the file exists so we can proceed to open and read it
+    with open(path_to_config_file, 'r') as conf_file:
+        try:
+            config = yaml.safe_load(conf_file)
+            return config
+        except yaml.YAMLError as exception:
+            print(exception)
+            return
+
+
+def check_config(config):
+    # When we're here we know, that the file was loaded correctly: we need to check if all the required info is contained in the config
+    # Initialize a tuple of the values of the config file, which are essential to run the data_logger
+    required_info = ('n_digits', 'channels', 'show_data', 'log_type')
+    # since channel names are read from main_config.yaml as complete string, we have to get rid of the spaces first, so they dont get recognized as channel names
+    config['channels'] = config['channels'] if isinstance(config['channels'], list) else config['channels'].split()
+    # check, if all the values which we require are given in the config file
+    missing = []
+    for req_i in required_info:
+        if req_i not in config:
+            missing.append(req_i)
+    # print out values, which were not handed over by the config file
+    if missing:
+        print('Following config info is missing: {}'.format(', '.join(missing)))
+        return
+
+    # check for valid configuration for each log_type, where port or ip are needed
+    if 's' in config['log_type']:
+        if not config['port']:
+            raise ValueError('data_logger was called with the sending option, but no ZMQ port is given.')
+
+    if 'r' in config['log_type']:
+        if not (config['port'] and config['ip']):
+            raise ValueError('data_logger was called with the receiving option, but no ZMQ port or host-ip is given.')
+
+    print('Configuration successful.')
 
 
 def _create_actual_adc_channels(channels, mode):
@@ -70,52 +112,6 @@ def _create_actual_adc_channels(channels, mode):
 
     return actual_channels
 
-def load_config(path_to_config_file):
-    # Function, which reads the configuration yaml and checks, if all required information is contained for the chosen case.
-    # Here we need to check if the config path that was given exists and is a file
-    if not os.path.isfile(path_to_config_file):
-        print('No config file found at the given path.')
-        return
-
-     # At this point we know that the file exists so we can proceed to open and read it
-    with open(path_to_config_file, 'r') as conf_file:
-        try:
-            config = yaml.safe_load(conf_file)
-            return config
-        except yaml.YAMLError as exception:
-            print(exception)
-            return
-
-def check_config(config):
-    # When we're here we know, that the file was loaded correctly: we need to check if all the required info is contained in the config
-    # Initialize a tuple of the values of the config file, which are essential to run the data_logger
-    required_info = ('n_digits', 'channels', 'show_data', 'log_type')
-    # since channel names are read from config.yaml as complete string, we have to get rid of the spaces first, so they dont get recognized as channel names
-    config['channels'] = config['channels'].split()
-    # check, if all the values which we require are given in the config file
-    missing = []
-    for req_i in required_info:
-        if req_i not in config:
-            missing.append(req_i)
-    # print out values, which were not handed over by the config file
-    if missing:
-        print('Following config info is missing: {}'.format(', '.join(missing)))
-        return
-
-    # check for valid configuration for each log_type, where port or ip are needed
-    if 's' in config['log_type']:
-        if not config['port']:
-            raise ValueError('data_logger was called with the sending option, but no ZMQ port is given.')
-            return
-
-    if 'r' in config['log_type']:
-        if not (config['port'] and config['ip']):
-            raise ValueError('data_logger was called with the receiving option, but no ZMQ port or host-ip is given.')
-            return
-
-    print('Configuration successful.')
-    return
-
 
 def logger(channels, log_type, n_digits, show_data=False, path=None, fname=None, drate=None, pga_gain=None, rate=None, mode='s', port=None, ip=None):
     """
@@ -125,8 +121,8 @@ def logger(channels, log_type, n_digits, show_data=False, path=None, fname=None,
     selected as inputs. Only as many channels are read as there are names
     in the channel list.
 
-    The script should be executed like this : ps_monitor config.yaml
-    The config.yaml file should always be copied from the default_config.yaml and then be modified as desired.
+    The script should be executed like this : ps_monitor main_config.yaml
+    The main_config.yaml file should always be copied from the default_config.yaml and then be modified as desired.
     Parameters
     ----------
 
@@ -158,7 +154,14 @@ def logger(channels, log_type, n_digits, show_data=False, path=None, fname=None,
     Returns
     -------
     """
-    # Create file path, where data should be stored and a copy of the used config.yaml file is saved
+    def keyboard_interrupt():
+        raise KeyboardInterrupt
+
+    # Connect kill and termination signals to raise KeyboardInterrupt lika a boss
+    for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGQUIT):
+        signal.signal(sig, keyboard_interrupt)
+
+    # Create file path, where data should be stored and a copy of the used main_config.yaml file is saved
     full_path = os.path.join(path, datetime.now().strftime('%Y-%m-%d'), datetime.now().strftime('%H-%M-%S'))
 
     # First thing to do: figure out which arguments are needed from log_type
@@ -240,7 +243,6 @@ def logger(channels, log_type, n_digits, show_data=False, path=None, fname=None,
             adc.cal_system_offset()
             bit_offset = adc.ofc
             offset_volts.append(bit_offset * adc.v_per_digit)
-        print([o * 1e3 for o in offset_volts])
 
         # Set this to 0 since we want to manually calc the offset for each channel
         adc.ofc = 0
@@ -256,7 +258,7 @@ def logger(channels, log_type, n_digits, show_data=False, path=None, fname=None,
             else:
                 out.write('# Timestamp / s\t' + ' \t'.join('%s / V' % c for c in channels) + '\n')
 
-    # save a copy of the used config.yaml file in the data path
+    # save a copy of the used main_config.yaml file in the data path
     if not os.path.exists(full_path):
         try:
             os.makedirs(full_path)
@@ -302,7 +304,7 @@ def logger(channels, log_type, n_digits, show_data=False, path=None, fname=None,
                     socket.send_json(data)
 
                 # wait, if wanted
-                if rate is not None:
+                if isinstance(rate, (int, float)):
                     time.sleep(1. / rate)
 
             # write voltages to file
@@ -352,11 +354,11 @@ def logger(channels, log_type, n_digits, show_data=False, path=None, fname=None,
 
 def main():
     # sys.argv is a list that contains the command line arguments which where given when this script was called (0th element is path to script itself)
-    # The config.yaml should be the last argument, when you call the script.
+    # The main_config.yaml should be the last argument, when you call the script.
     path_to_config_file = sys.argv[-1]
     config = load_config(path_to_config_file)
     check_config(config)
-    _create_actual_adc_channels(config['channels'],config['mode'])
+    _create_actual_adc_channels(config['channels'], config['mode'])
     logger(**config)  # Casting of dict into 'kwargs' aka keyword arguments a la key=value
 
     # TODO: add "socket" as argument: socket={"type": receiver|sender, "address": tcp://127.0.0.1.8888}
