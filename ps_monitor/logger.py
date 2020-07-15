@@ -155,12 +155,13 @@ def logger(channels, log_type, n_digits, show_data=False, path=None, fname=None,
     Returns
     -------
     """
-    def keyboard_interrupt():
-        raise KeyboardInterrupt
+
+    #def stop_logger(frame, signum):
+    #    raise KeyboardInterrupt("It bad")
 
     # Connect kill and termination signals to raise KeyboardInterrupt lika a boss
-    for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGQUIT):
-        signal.signal(sig, keyboard_interrupt)
+    #for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGQUIT):
+    #    signal.signal(sig, stop_logger)
 
     # Create file path, where data should be stored and a copy of the used main_config.yaml file is saved
     full_path = os.path.join(path, datetime.now().strftime('%Y-%m-%d'), datetime.now().strftime('%H-%M-%S'))
@@ -342,9 +343,10 @@ def logger(channels, log_type, n_digits, show_data=False, path=None, fname=None,
                 # overwrite
                 start = time.time()
 
-    except KeyboardInterrupt:
+    except (KeyboardInterrupt, SystemExit):
         if 'w' in log_type:
             print '\nStopping logger...\nClosing %s...' % str(full_path)
+            out.close()
 
         if 's' in log_type or 'r' in log_type:
             socket.close()

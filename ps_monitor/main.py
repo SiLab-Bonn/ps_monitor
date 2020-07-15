@@ -3,7 +3,7 @@ import os
 import yaml
 import logging
 import logger
-import time
+import multiprocessing
 from irrad_control.utils.proc_manager import ProcessManager
 from monitor import main as DoTheMonitoringThing
 
@@ -51,11 +51,28 @@ def main():
 
         pm._exec_cmd(hostname, 'nohup bash /home/pi/start_logger.sh &')
 
+    workers = []
+    for rpi in config["rpis"]:
+        config["rpis"][rpi]["log_type"] = "rw"
+        worker = multiprocessing.Process(target=logger.logger, kwargs=config["rpis"][rpi])
+        workers.append(worker)
+        worker.start()
 
     # Step 1) is done here
     # Step 2: move the logger.py + config + start_script to all RPis
     if config['monitor']:
-        DoTheMonitoringThing(config=config["rpis"])
+        worker = multiprocessing.Process(target=DoTheMonitoringThing, args=(config["rpis"],))
+        workers.append(worker)
+        worker.start()
+
+    try:
+        for w in workers:
+            w.join()
+
+    except KeyboardInterrupt:
+        for w in workers:
+            w.terminate()
+
 
 if __name__ == "__main__":
     main()

@@ -1,7 +1,6 @@
 import sys
 import zmq
 import time
-import argparse
 from PyQt5 import QtCore, QtWidgets, QtGui
 from threading import Event
 import logger
@@ -101,6 +100,14 @@ class PSMonitorWin(QtWidgets.QMainWindow):
 
             self.data_received.emit(data)
 
+        data_sub.close()
+
+    def close(self):
+
+        self.context.close()
+
+        super(self, PSMonitorWin).close()
+
 
 def main(config):
     app = QtWidgets.QApplication(sys.argv)
@@ -109,7 +116,7 @@ def main(config):
     app.setFont(font)
     psm = PSMonitorWin(config=config)
     psm.show()
-    sys.exit(app.exec_())
+    app.exec_()
 
 
 if __name__ == '__main__':
@@ -117,4 +124,4 @@ if __name__ == '__main__':
 
     path_to_config_file = sys.argv[-1]
     config = logger.load_config(path_to_config_file)
-    main(config=config)
+    sys.exit(main(config=config["rpis"]))

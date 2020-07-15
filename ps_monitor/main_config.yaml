@@ -4,7 +4,9 @@ rpis:
     ##########################################################
 
     #channel names
-    channels: "A B"
+    channels:
+    - A
+    - B
 
     #type of logging behaviour
     # 'w' for ONLY writing data locally
@@ -19,7 +21,7 @@ rpis:
     port: 5556
 
     #path were data will be stored. final format path/Y-m-d/H-M-S.dat
-    path: testdata/
+    path: testdata1/
 
     #timeout between loggings as float or None for continous logging
     rate: None
@@ -41,7 +43,9 @@ rpis:
     pga_gain: 1
 
   Pi2:
-    channels: "C D"
+    channels:
+      - C
+      - D
 
     log_type: 'sw'
 
@@ -49,7 +53,7 @@ rpis:
 
     port: 5556
 
-    path: testdata/
+    path: testdata2/
 
     rate: None
 
@@ -65,3 +69,4 @@ rpis:
 
  #If monitoring True, OnlineMonitor is launched, which displays the measurement of all listed Raspberry Pis
 monitor: True
+write: True
