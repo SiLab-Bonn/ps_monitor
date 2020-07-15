@@ -2,10 +2,10 @@ import sys
 import os
 import yaml
 import logging
-import logger
 import multiprocessing
 from irrad_control.utils.proc_manager import ProcessManager
-from monitor import main as DoTheMonitoringThing
+from ps_monitor.monitor import main as DoTheMonitoringThing
+from ps_monitor import logger
 
 logging.getLogger().setLevel("INFO")
 
@@ -47,7 +47,7 @@ def main():
 
         # Copy config_yaml and logger.py to home folder of Rpi
         pm.copy_to_server(hostname, os.path.join(os.getcwd(), "{}_config.yaml".format(rpi)), "/home/pi/{}_config.yaml".format(rpi))
-        pm.copy_to_server(hostname, os.path.join(os.getcwd(), "logger.py"), "/home/pi/logger.py")
+        pm.copy_to_server(hostname, os.path.join(os.path.dirname(__file__), 'logger.py'), "/home/pi/logger.py")
 
         pm._exec_cmd(hostname, 'nohup bash /home/pi/start_logger.sh &')
 

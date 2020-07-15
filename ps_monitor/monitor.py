@@ -3,7 +3,7 @@ import zmq
 import time
 from PyQt5 import QtCore, QtWidgets, QtGui
 from threading import Event
-import logger
+from ps_monitor import logger
 
 # Package imports
 from irrad_control.utils.worker import Worker
