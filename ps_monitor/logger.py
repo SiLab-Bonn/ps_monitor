@@ -2,7 +2,8 @@
 
 import sys
 import os
-import signal
+import tables as tb
+import numpy as np
 import errno
 import shutil
 import time
@@ -156,13 +157,6 @@ def logger(channels, log_type, n_digits, show_data=False, path=None, fname=None,
     -------
     """
 
-    #def stop_logger(frame, signum):
-    #    raise KeyboardInterrupt("It bad")
-
-    # Connect kill and termination signals to raise KeyboardInterrupt lika a boss
-    #for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGQUIT):
-    #    signal.signal(sig, stop_logger)
-
     # Create file path, where data should be stored and a copy of the used main_config.yaml file is saved
     full_path = os.path.join(path, datetime.now().strftime('%Y-%m-%d'), datetime.now().strftime('%H-%M-%S'))
 
@@ -181,11 +175,24 @@ def logger(channels, log_type, n_digits, show_data=False, path=None, fname=None,
                     raise
 
         # Open required file
-        out = open(os.path.join(full_path, 'data.dat' if fname is None else fname), 'w')
-        if log_type == 'rw':
-            # write info header
-            out.write('# Date: %s \n' % time.asctime())
-            out.write('# Timestamp receiver / s\t' + 'Timestamp data / s\t' + ' \t'.join('%s / V' % c for c in channels) + '\n')
+        out = tb.open_file(os.path.join(full_path, 'data.h5' if fname is None else fname), 'w')
+
+        # Declare data type numpy style of incoming data
+        data_type = [('timestamp_recv', '<f8'), ('timestamp_data', '<f8')] + [(ch, '<f4') for ch in channels]
+
+        # Create buffer for incoming data
+        data_buffer = np.zeros(shape=1, dtype=data_type)
+
+        # Create Group
+        out.create_group(out.root, "RPiData")
+
+        # Make table
+        data_table = out.create_table("/RPiData", description=data_buffer.dtype, name="data")
+
+        #if log_type == 'rw':
+        #    # write info header
+        #    out.write('# Date: %s \n' % time.asctime())
+        #    out.write('# Timestamp receiver / s\t' + 'Timestamp data / s\t' + ' \t'.join('%s / V' % c for c in channels) + '\n')
 
     # Second thin to figure out: are we sending or receiving data on a socket
     if log_type in ('sw', 'rw', 's'):
@@ -251,14 +258,21 @@ def logger(channels, log_type, n_digits, show_data=False, path=None, fname=None,
 
         # We're writing to file
         if log_type != 's':
-            out.write('# Date: %s \n' % time.asctime())
-            out.write('# Measurement in %s mode.\n' % ('differential' if mode == 'd' else 'single-ended' if mode == 's' else mode))
-            out.write('# ADC settings: PGA_gain = {}; Sampling_rate = {}\n'.format(pga_gain, drate))
-            out.write('# Offset voltages in V: ' + '\t'.join('%.{}f'.format(n_digits) % o for o in offset_volts) + '\n')
-            if log_type == 'rw':
-                out.write('# Timestamp receiver / s\t' + 'Timestamp data / s\t' + ' \t'.join('%s / V' % c for c in channels) + '\n')
-            else:
-                out.write('# Timestamp / s\t' + ' \t'.join('%s / V' % c for c in channels) + '\n')
+            # Declare data type numpy style of incoming data
+            meta_type = [('pga_gain', '<i2'), ('drate', '<f4')] + [(ch + "_offset", '<f4') for ch in channels]
+
+            # Create buffer for incoming data
+            meta_buffer = np.zeros(shape=1, dtype=meta_type)
+
+            meta_table = out.create_table("/RPiData", description=meta_buffer.dtype, name="meta")
+
+            meta_buffer["pga_gain"] = pga_gain
+            meta_buffer["drate"] = drate
+            for i, ch in enumerate(channels):
+                meta_buffer[ch + "_offset"] = offset_volts[i]
+
+            meta_table.append(meta_buffer)
+            meta_table.flush()
 
     # save a copy of the used main_config.yaml file in the data path
     if not os.path.exists(full_path):
@@ -284,7 +298,11 @@ def logger(channels, log_type, n_digits, show_data=False, path=None, fname=None,
 
                 _meta, _data = data['meta'], data['data']
 
-                write_data = [time.time(), _meta['timestamp']] + [_data[ch] for ch in channels]
+                data_buffer["timestamp_recv"] = time.time()
+                data_buffer["timestamp_data"] = _meta['timestamp']
+                for ch in _data:
+                    data_buffer[ch] = _data[ch]
+
                 readout_end = time.time()
             else:
 
@@ -296,7 +314,9 @@ def logger(channels, log_type, n_digits, show_data=False, path=None, fname=None,
                 # TODO: offset seems to be subtracted already in adc.cal_system_offset() in line 133 -> temporarily inserted factor 0.
                 actual_volts = [volts[i] - offset_volts[i] for i in range(len(volts))]
 
-                write_data = [readout_start] + actual_volts
+                data_buffer["timestamp_data"] = readout_start
+                for i, ch in enumerate(channels):
+                    data_buffer[ch] = actual_volts[i]
 
                 readout_end = time.time()
 
@@ -311,10 +331,15 @@ def logger(channels, log_type, n_digits, show_data=False, path=None, fname=None,
 
             # write voltages to file
             if 'w' in log_type:
-                out.write('\t'.join('%.{}f'.format(n_digits) % v for v in write_data) + '\n')
+                data_table.append(data_buffer)
 
             # User feedback about logging and readout rates every second
             if time.time() - start > 1:
+
+                try:
+                    data_table.flush()
+                except NameError:
+                    pass
 
                 # actual logging and readout rate
                 logging_rate = 1. / (time.time() - readout_start)
@@ -345,7 +370,8 @@ def logger(channels, log_type, n_digits, show_data=False, path=None, fname=None,
 
     except (KeyboardInterrupt, SystemExit):
         if 'w' in log_type:
-            print '\nStopping logger...\nClosing %s...' % str(full_path)
+            print '\nStopping logger...\nClosing %s...' % str(out.filename)
+            out.flush()
             out.close()
 
         if 's' in log_type or 'r' in log_type:
