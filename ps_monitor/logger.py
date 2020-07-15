@@ -8,6 +8,7 @@ import shutil
 import time
 import zmq
 import yaml
+from datetime import datetime
 from irrad_control.devices.adc.ADS1256_definitions import *
 from irrad_control.devices.adc.pipyadc import ADS1256
 from irrad_control.devices.adc.ADS1256_drates import ads1256_drates

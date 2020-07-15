@@ -31,7 +31,7 @@ rpis:
     mode: 's'
 
     #Shows data values in terminal, if True
-    show_data: True
+    show_data: False
 
     #Sets sampling rate of ADS1256
     drate: 1000 #if args['sampling_rate'] is None else int(args['sampling_rate'])
@@ -57,12 +57,11 @@ rpis:
 
     mode: 's'
 
-    show_data: True
+    show_data: False
 
     drate: 1000
 
     pga_gain: 1
 
-    monitor: True #If monitoring True, OnlineMonitor is launched, which displays the measurement of all listed Raspberry Pis
-
+ #If monitoring True, OnlineMonitor is launched, which displays the measurement of all listed Raspberry Pis
 monitor: True
