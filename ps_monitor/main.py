@@ -19,7 +19,7 @@ def _configure_rpi_server(config, pm):
     pm.connect_to_server(hostname=ip, username='pi')
 
     # Configure
-    pm.configure_server(hostname=ip, branch="development", git_pull=True)
+    pm.configure_server(hostname=ip, branch="development", git_pull=False)
 
 
 def main():
