@@ -41,33 +41,4 @@ rpis:
 
     #Sets ADS1256 amplifier gain; possible gain settings 1,2,4,8,16,32,64
     pga_gain: 1
-
-  PiB:
-    channels:
-      - CLEAR_ON
-      - CLEAR_OFF
-      - SW_SUB
-
-    log_type: 'sw'
-
-    ip: 169.254.205.162
-
-    port: 5556
-
-    path: RaspberryB_data/
-
-    rate: None
-
-    n_digits: 8
-
-    mode: 's'
-
-    show_data: False
-
-    drate: 1000
-
-    pga_gain: 1
-
- #If monitoring True, OnlineMonitor is launched, which displays the measurement of all listed Raspberry Pis
-monitor: False
-write: True
+monitor: True

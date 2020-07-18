@@ -1,0 +1,28 @@
+rpis:
+  PiB:
+    channels:
+      - CLEAR_ON
+      - CLEAR_OFF
+      - SW_SUB
+
+    log_type: 'sw'
+
+    ip: 169.254.205.162
+
+    port: 5556
+
+    path: RaspberryB_data/
+
+    rate: None
+
+    n_digits: 8
+
+    mode: 's'
+
+    show_data: False
+
+    drate: 1000
+
+    pga_gain: 1
+
+monitor: True
