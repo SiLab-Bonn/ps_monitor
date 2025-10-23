@@ -6,8 +6,8 @@ from threading import Event
 from ps_monitor import logger
 
 # Package imports
-from irrad_control.utils.worker import Worker
-from irrad_control.gui.widgets import ScrollingIrradDataPlot, PlotWrapperWidget
+from irrad_control.utils.worker import QtWorker as Worker
+from irrad_control.gui.widgets.plot_widgets import ScrollingIrradDataPlot, PlotWrapperWidget
 
 PROJECT_NAME = 'PS Monitor'
 
@@ -19,6 +19,7 @@ def tcp_addr(ip, port):
 class PSMonitorWin(QtWidgets.QMainWindow):
 
     data_received = QtCore.pyqtSignal(dict)
+    print(data_received, 'data received')
 
     def __init__(self, config, parent=None):
         super(PSMonitorWin, self).__init__(parent)
@@ -69,7 +70,7 @@ class PSMonitorWin(QtWidgets.QMainWindow):
         self.setCentralWidget(self.main_widget)
 
         plot = ScrollingIrradDataPlot(channels=self.channels, units={'left': 'V', 'right': 'V'}, name='PowerSupplyMonitor')
-        self.data_received.connect(lambda data: plot.set_data(data))
+        self.data_received.connect(lambda data: plot.set_data(meta=data['meta'], data=data['data']))
 
         monitor_widget = PlotWrapperWidget(plot)
         self.setCentralWidget(monitor_widget)
@@ -83,12 +84,13 @@ class PSMonitorWin(QtWidgets.QMainWindow):
         for rpi in self.config:
             data_sub.connect(tcp_addr(ip=self.ip[rpi], port=self.port[rpi]))
 
-        data_sub.setsockopt(zmq.SUBSCRIBE, '')
+        data_sub.setsockopt(zmq.SUBSCRIBE, b'')
         data_timestamp = None
 
         while not self.stop_recv_data.is_set():
 
             data = data_sub.recv_json()
+            
 
             if data_timestamp is None:
                 data_timestamp = time.time()
@@ -99,7 +101,6 @@ class PSMonitorWin(QtWidgets.QMainWindow):
                 data['meta']['data_rate'] = drate
 
             self.data_received.emit(data)
-
         data_sub.close()
 
     def close(self):

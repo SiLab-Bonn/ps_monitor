@@ -6,7 +6,7 @@ import argparse
 # Socket to talk to server
 context = zmq.Context()
 socket = context.socket(zmq.SUB)
-socket.setsockopt(zmq.SUBSCRIBE, '')  # Subscribe to everything
+socket.setsockopt(zmq.SUBSCRIBE, b'')  # Subscribe to everything
 
 
 def recv_data(channels, port, ip, outfile):
@@ -19,10 +19,10 @@ def recv_data(channels, port, ip, outfile):
 
         # try-except clause for ending logger
         try:
-            print "Collecting data from RaspberryPi..."
+            print("Collecting data from RaspberryPi...")
             # connecting to specified ip address and port
             socket.connect("tcp://%s:%s" % (ip, port))
-            print "START"
+            print("START")
             while True:
                 # receive actual voltage values including timestamp
                 data = socket.recv_json()
@@ -36,7 +36,7 @@ def recv_data(channels, port, ip, outfile):
 
         # end receiving with KeyboardInterrupt
         except KeyboardInterrupt:
-            print '\nStopping logger...\nClosing data file...'
+            print('\nStopping logger...\nClosing data file...')
 
 
 if __name__ == '__main__':

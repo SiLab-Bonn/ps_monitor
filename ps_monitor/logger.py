@@ -1,7 +1,6 @@
-#!usr/bin/env python
-
 import sys
 import os
+sys.path.insert(1, os.getcwd())
 import tables as tb
 import numpy as np
 import errno
@@ -10,10 +9,31 @@ import time
 import zmq
 import yaml
 from datetime import datetime
-from irrad_control.devices.adc.ADS1256_definitions import *
-from irrad_control.devices.adc.pipyadc import ADS1256
-from irrad_control.devices.adc.ADS1256_drates import ads1256_drates
-import irrad_control.devices.adc.ADS1256_default_config as ADS1256_default_config
+from pipyadc.ADS1256_definitions import *
+from pipyadc import ADS1256
+#from irrad_control.devices.adc.ADS1256_drates import ads1256_drates
+import pipyadc.ADS1256_default_config as ADS1256_default_config
+
+from collections import OrderedDict
+
+# ADS1256 data rates in samples per second
+ads1256_drates = OrderedDict([(30000, DRATE_30000),
+                              (15000, DRATE_15000),
+                              (7500, DRATE_7500),
+                              (3750, DRATE_3750),
+                              (2000, DRATE_2000),
+                              (1000, DRATE_1000),
+                              (500, DRATE_500),
+                              (100, DRATE_100),
+                              (60, DRATE_60),
+                              (50, DRATE_50),
+                              (30, DRATE_30),
+                              (25, DRATE_25),
+                              (15, DRATE_15),
+                              (10, DRATE_10),
+                              (5, DRATE_5),
+                              (2.5, DRATE_2_5)])
+
 
 def load_config(path_to_config_file):
     # Function, which reads the configuration yaml and checks, if all required information is contained for the chosen case.
@@ -286,7 +306,7 @@ def logger(channels, log_type, n_digits, show_data=False, path=None, fname=None,
 
     # try -except clause for ending logger
     try:
-        print 'Start logging channel(s) %s to file %s.\nPress CTRL + C to stop.\n' % (', '.join(channels), full_path)
+        print('Start logging channel(s) {} to file {}. Press CTRL + C to stop.'.format(', '.join(channels), full_path))
         start = time.time()
         while True:
 
@@ -370,7 +390,7 @@ def logger(channels, log_type, n_digits, show_data=False, path=None, fname=None,
 
     except (KeyboardInterrupt, SystemExit):
         if 'w' in log_type:
-            print '\nStopping logger...\nClosing %s...' % str(out.filename)
+            print('\nStopping logger...\nClosing %s...' % str(out.filename))
             out.flush()
             out.close()
 
@@ -378,7 +398,7 @@ def logger(channels, log_type, n_digits, show_data=False, path=None, fname=None,
             socket.close()
             print('Stopped {} data'.format('sending' if 's' in log_type else 'receiving'))
 
-    print 'Finished'
+    print('Finished')
 
 
 def main():

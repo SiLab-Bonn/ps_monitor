@@ -1,13 +1,12 @@
 rpis:
   PiB:
     channels:
-      - CLEAR_ON
-      - CLEAR_OFF
-      - SW_SUB
+      - GATE_ON1
+      - GATE_OFF
 
     log_type: 'sw'
 
-    ip: 169.254.205.162
+    ip: 10.32.208.144
 
     port: 5556
 
@@ -21,7 +20,7 @@ rpis:
 
     show_data: False
 
-    drate: 1000
+    drate: 500
 
     pga_gain: 1
 
